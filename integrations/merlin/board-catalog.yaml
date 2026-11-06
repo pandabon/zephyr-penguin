@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+# Board catalog entry for Merlin (https://github.com/ucb-bar/merlin), so Merlin can generate Zephyr
+# apps for Penguin. Use it with:
+#   MERLIN_BOARD_CATALOG=<this repo>/integrations/merlin/board-catalog.yaml
+# then pick board "penguin". Merlin builds the generated app with -DBOARD=chipyard_penguin/penguin,
+# and Zephyr finds the board through this repo's module, with no glue.
+#
+# Format: Merlin's catalog schema (examples/board-catalog.yaml and the Board dataclass in
+# src/merlin/runtime/boards.py, ucb-bar/merlin @ 37f1b71b8). The entry was first written and run on
+# Spike on 2026-11-06 (a generated model app built with plain `west build` and matched Merlin's
+# golden output); Spike is not the chip.
+#
+# Where each value comes from (this repo's files):
+#   harts, dt_cpu_nodes      one cpu node, dts/riscv/chipyard/penguin.dtsi
+#   vlen                     zvl256b in riscv,isa (penguin.dtsi) and RISCV_VECTOR_MAX_LEN=256
+#                            (soc/chipyard/penguin/Kconfig.defconfig)
+#   dram_base, dram_bytes,   ram0: memory@80000000, 0x10000000 bytes (penguin.dtsi); the DT region
+#   zephyr_default_ram_bytes is the whole DRAM, so no RAM overlay is needed
+#   zephyr_link_limit_bytes  bounded by dram_bytes here: the linked image cannot be larger than the
+#                            256 MiB of DRAM (other catalog entries use 1900 MiB on 2 GiB boards)
+#   console                  zephyr,console = &htif (boards/chipyard/penguin/chipyard_penguin.dts)
+#   loader, loader_baud      UART-TSI at 921600 on the chip's bring-up FPGA (board.cmake)
+#   fpu_sharing              the generated app turns CONFIG_FPU_SHARING off (the board's defconfig
+#                            has it on; a single-threaded inference app does not need it)
+schema_version: 1
+
+boards:
+  penguin:
+    zephyr_board: chipyard_penguin/penguin
+    dt_cpu_nodes: 1
+    harts: 1
+    vector_harts: 1
+    vlen: 256
+    dram_base: 0x80000000
+    dram_bytes: 256 MiB
+    zephyr_default_ram_bytes: 256 MiB
+    zephyr_link_limit_bytes: 256 MiB
+    ram_label: ram0
+    console: htif
+    flow: zephyr
+    loader: uart_tsi
+    loader_baud: 921600
+    fpu_sharing: false
+    zephyr_vector_ext: true
+    notes: "Penguin SoC (Chipyard, Saturn vector unit) through the zephyr-penguin board"

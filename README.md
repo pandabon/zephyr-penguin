@@ -25,6 +25,7 @@ This repo produces the ELFs; loading them onto hardware is done by a separate lo
 | `soc/` | The Penguin SoC: ISA selection (Kconfig), timer, HTIF exit |
 | `dts/` | Devicetree include `penguin.dtsi` and bindings (`ucb-bar,shuttle`, `ucb-bar,atlas`) |
 | `snippets/` | West snippets: `debug` (-Og, frame pointers, asserts) |
+| `integrations/merlin/` | `board-catalog.yaml`: the Penguin entry for [Merlin](https://github.com/ucb-bar/merlin)'s board catalog (`MERLIN_BOARD_CATALOG=<this file>`, board `penguin`), so Merlin-generated Zephyr apps build for Penguin |
 | `include/` | Headers shared by apps and the port (`chipyard/sim_exit.h`) |
 | `cmake/` | Build helper `spike.cmake` (the board's `run` target) |
 | `scripts/` | `run_tests.py` (test runner), the Spike debug runner, `doctor.sh` (machine check), `export_to_fork.sh`, `make_patched_zephyr.sh` |
