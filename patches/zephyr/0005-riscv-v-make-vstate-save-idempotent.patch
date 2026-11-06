@@ -12,9 +12,10 @@ clobbered e8m8/VLMAX as the thread's vl/vtype, so when the thread
 resumes its vector ops run with the wrong element width and length.
 Vector register contents are unaffected.
 
-Found by zephyr-chipyard-bsp tests/arch/rvv/ctx_switch: time-slice
-preemption, semaphore wakeups from ISRs and FP+V threads all read back
-vl=0x100 (e8m8 VLMAX at VLEN 256) instead of their own setting.
+Found by an RVV context-switch test (the reproducer is tests/arch/rvv/ctx_switch_min in this repo): the cases with
+time-slice preemption (alone, with FP, and mixed with other modes) read back
+vl=0x100 (e8m8 VLMAX at VLEN 256) instead of their own setting; a thread
+that blocks on a semaphore and is woken from thread context is unaffected.
 
 Fix: restore the thread's saved V CSRs at the end of the bulk save.
 

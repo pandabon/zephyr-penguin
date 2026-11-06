@@ -8,3 +8,6 @@ board:
       variants:
         - name: vcu118
         - name: vcu118_ta
+        # HYPOTHETICAL, no such board exists: the base board with 4 GiB of DRAM
+        # (the real SophiaLake board has 1 GiB DDR3L). For Spike / a future board.
+        - name: sophialake_4g

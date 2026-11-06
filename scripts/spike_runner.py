@@ -1,16 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
-"""west runner "spike": debug a Zephyr ELF on Spike through OpenOCD.
+"""west runner "spike": debug a Zephyr ELF on the Spike ISA simulator.
 
-    gdb  --(GDB remote, :3333)-->  OpenOCD  --(remote_bitbang, :9824)-->  Spike
+Debugging Spike is the same as debugging real silicon, except the JTAG wires
+are replaced by a TCP socket:
 
-This is Zephyr's `openocd` runner plus starting Spike first and killing it afterwards:
+    gdb  --(GDB remote protocol, :3333)-->  OpenOCD
+                                              |  remote_bitbang (TCP, :9824)
+                                              v
+                                            Spike  (RISC-V Debug Module, rbb)
 
-  * west debugserver : Spike + OpenOCD; attach gdb yourself.
-  * west debug       : Spike + OpenOCD + gdb (Spike has already loaded the ELF).
-  * west attach      : like debug, without `load`.
+Zephyr's stock `openocd` runner already knows how to start OpenOCD and gdb.
+All it does not know is that Spike has to be running first. So this runner is
+the stock one plus "start Spike before, kill Spike after":
 
-All openocd runner options still apply. Registered through `runners:` in
-zephyr/module.yml.
+  * west debugserver : Spike + OpenOCD; you attach gdb yourself.
+  * west debug       : Spike + OpenOCD + gdb (ELF already loaded by Spike).
+  * west attach      : same as debug but without `load`.
+
+Everything the openocd runner accepts (--gdb-port, --config, --gdb-init, ...)
+still works. Loaded by west through `runners:` in zephyr/module.yml.
 """
 
 import shutil
@@ -47,9 +55,12 @@ class SpikeBinaryRunner(OpenOcdBinaryRunner):
 
     @property
     def thread_info_enabled(self):
-        # The stock runner passes `-rtos Zephyr` for CONFIG_DEBUG_THREAD_INFO=y, but OpenOCD's
-        # Zephyr support (src/rtos/zephyr.c) aborts on a riscv target with "Could not find
-        # target in Zephyr compatibility list" (OpenOCD 0.12.0 and master).
+        # The stock runner adds `-rtos Zephyr` when CONFIG_DEBUG_THREAD_INFO=y.
+        # OpenOCD's Zephyr thread support (src/rtos/zephyr.c) only knows
+        # cortex_m/aarch64-style targets; with a `riscv` target it aborts with
+        # "Could not find target in Zephyr compatibility list" (checked on
+        # OpenOCD 0.12.0 and current master). So never ask for it here. The
+        # symbols exported by DEBUG_THREAD_INFO are still in the ELF for gdb.
         return False
 
     @classmethod
@@ -58,7 +69,7 @@ class SpikeBinaryRunner(OpenOcdBinaryRunner):
 
     @classmethod
     def capabilities(cls):
-        # Spike loads the ELF itself.
+        # No flash: Spike loads the ELF itself on its command line.
         return RunnerCaps(commands={'debug', 'debugserver', 'attach'})
 
     @classmethod
@@ -97,7 +108,8 @@ class SpikeBinaryRunner(OpenOcdBinaryRunner):
     # -- Spike lifecycle --------------------------------------------------
 
     def _check_openocd(self):
-        # The SDK's OpenOCD lacks remote_bitbang and its own error is a long adapter list.
+        # Fail early with a useful message: the SDK's OpenOCD lacks the
+        # remote_bitbang driver, and its own error is a long adapter list.
         exe = self.openocd_cmd[0]
         self.require(exe)
         out = self.check_output([exe, '-c', 'adapter list', '-c', 'shutdown'],
@@ -128,9 +140,11 @@ class SpikeBinaryRunner(OpenOcdBinaryRunner):
         self.spike_proc = self.popen_ignore_int(cmd, stdout=subprocess.PIPE,
                                           stderr=subprocess.STDOUT, text=True)
 
-        # Spike accepts one rbb client, so do not probe the port by connecting. Wait for its
-        # "Listening for remote bitbang connection" banner instead. Spike's output, including
-        # the HTIF console, is relayed to west's log with a "spike: " prefix.
+        # Spike accepts exactly ONE rbb client, so we must not probe the port
+        # by connecting (that would use up the connection). Wait for Spike's
+        # own banner "Listening for remote bitbang connection on port N." (printed
+        # on stdout). Spike's stdout+stderr, which includes the Zephyr console
+        # (HTIF), is relayed through west's log with a "spike: " prefix.
         listening = threading.Event()
 
         def pump():
@@ -162,13 +176,15 @@ class SpikeBinaryRunner(OpenOcdBinaryRunner):
 
     def do_run(self, command, **kwargs):
         self._check_openocd()
-        # Make SIGTERM/SIGHUP unwind through `finally` like Ctrl-C, so Spike is not orphaned.
+        # Ctrl-C already unwinds through `finally`; make SIGTERM/SIGHUP (kill,
+        # closing the terminal) do the same so Spike is never left orphaned.
         for sig in (signal.SIGTERM, getattr(signal, 'SIGHUP', None)):
             if sig is not None:
                 signal.signal(sig, _raise_interrupt)
         try:
             self._start_spike()
-            # Passes the port to the OpenOCD config; this -c comes before the -f config.
+            # Tell the OpenOCD config which port Spike listens on. This -c
+            # precedes the -f config on the command line, so the cfg can read it.
             self.openocd_cmd += ['-c', f'set SPIKE_RBB_PORT {self.rbb_port}']
             super().do_run(command, **kwargs)
         finally:

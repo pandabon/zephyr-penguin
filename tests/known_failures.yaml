@@ -1,19 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-# Scenarios expected to fail on the stock Zephyr fork. scripts/run_tests.py reports them
-# as XFAIL and flags XPASS when one starts passing; then delete the entry.
-# id is the scenario name from testcase.yaml.
+# Tests expected to fail on the current (stock) Zephyr fork.
+# scripts/run_tests.py reports these as XFAIL (run still succeeds) and flags
+# XPASS when one starts passing: then delete the entry.
+# id = scenario name from testcase.yaml.
+# ctx_switch_min is the reproducer we keep for the RVV context-switch bug.
 known_failures:
-  - id: arch.riscv.rvv.ctx_switch
+  - id: arch.riscv.rvv.ctx_switch_min
     reason: >-
-      A thread preempted by an IRQ has vl/vtype overwritten with e8,m8,VLMAX (V state
-      saved twice). 3-4 of 6 cases fail, depending on timing on Spike.
-    fixed_by: patches/zephyr/0005-riscv-v-make-vstate-save-idempotent.patch (not applied)
-  - id: arch.riscv.rvv.ctx_switch.lazy
-    reason: >-
-      The fork does not implement lazy V switching (arch/riscv/core/v.c); it crashes at
-      boot on the first compiler-emitted vector instruction.
-    fixed_by: no patch yet (needs lazy V trap path in the fork)
-  - id: plain_app.return3
-    reason: >-
-      Negative test (tests/plain_app): main() returns 3 and the exit shim must turn that
-      into a failing exit code. XFAIL is the expected result; XPASS means the shim is broken.
+      Kernel bug (same bug the removed, larger ctx_switch test showed): a thread preempted by
+      an IRQ is saved twice and resumes with vl/vtype = e8,m8,VLMAX. On the
+      stock fork 2 of 3 cases fail in every run: test_preempt_csr reads
+      vl=0x100 vtype=0xc3, test_preempt_compiled faults with an illegal
+      instruction (mcause 2); test_voluntary_csr passes. Hardware to confirm.
+    fixed_by: zephyr-penguin patches/zephyr/0005-riscv-v-make-vstate-save-idempotent.patch (not applied)

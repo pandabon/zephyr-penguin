@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 description: |
-  Atlas NPU: a memory-mapped TileLink device (not a hart, not RoCC).
+  Atlas NPU: a memory-mapped TileLink device (not a hart, not RoCC). This
+  binding describes hardware only.
 
   Three fixed windows (reg-names, in this order):
     imem  flat instruction memory, PBUS, 32-bit access, default 128 KiB @ 0x00020000
@@ -14,10 +15,10 @@ description: |
     common/VmemParams.scala   bank count and bank size (size / numBanks)
     diplomatic/top/AtlasTile.scala   bus attachment (PBUS/SBUS)
 
-  Chipyard emits no DTS node for Atlas, so the node is written by hand. There is no
-  "interrupts" property because the RTL has no interrupt output; completion is polled via the
-  status CSR. There is no DMA window: the DMA engine is a TileLink client driven only by
-  kernel instructions.
+  Chipyard emits no DTS node for Atlas, so the node is written by hand.
+  There is no "interrupts" property: the RTL has no interrupt output
+  (completion is polled via the status CSR). There is no DMA window: the
+  DMA engine is a TileLink client driven by kernel instructions only.
 
   Example:
 
@@ -46,5 +47,5 @@ properties:
   vmem-banks:
     type: int
     description: |
-      Number of VMEM banks (bank size = vmem size / vmem-banks). The RTL default is 6 banks
-      of 256 KiB (VmemParams.scala).
+      Number of VMEM banks (bank size = vmem size / vmem-banks). The RTL
+      default is 6 banks of 256 KiB (VmemParams.scala). Optional.

@@ -1,12 +1,13 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Included by <zephyr/tc_util.h> when CONFIG_ZTEST_TC_UTIL_USER_OVERRIDE=y (the board
- * Kconfig.defconfig enables it).
+ * Included by <zephyr/tc_util.h> when CONFIG_ZTEST_TC_UTIL_USER_OVERRIDE=y
+ * (board Kconfig.defconfig turns it on whenever ZTEST is enabled).
  *
- * Stock ztest prints "PROJECT EXECUTION SUCCESSFUL/FAILED" and then idles, leaving the
- * simulator running. This TC_END_REPORT is upstream's plus an exit with code 0 on pass, 1 on
- * fail.
+ * Stock ztest prints "PROJECT EXECUTION SUCCESSFUL/FAILED" and then idles
+ * forever, which leaves a simulator running. Redefine TC_END_REPORT (same
+ * body as upstream) so it also ends the simulation, exit code 0 on pass and
+ * 1 on fail.
  */
 
 #ifndef CHIPYARD_TC_UTIL_USER_OVERRIDE_H_

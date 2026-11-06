@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Bring-up smoke test: report VLEN and run a strip-mined vector add.
+ * Bring-up smoke test: report VLEN and run one strip-mined vector add.
  */
 
 #include <zephyr/kernel.h>
@@ -39,5 +39,6 @@ int main(void)
 	       (unsigned int)(__riscv_vlenb() * 8), CONFIG_RISCV_VECTOR_MAX_LEN);
 	printk("hello_rvv: %s (%d errors)\n", errors ? "FAIL" : "PASS", errors);
 
+	/* End the simulation: exit code 0 on PASS, 1 on FAIL. */
 	chipyard_sim_exit(errors ? 1 : 0);
 }

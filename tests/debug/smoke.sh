@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Non-interactive check of the debug chain (Spike -> OpenOCD -> gdb).
-#   tests/debug/smoke.sh <build-dir built with -S debug>
-# Needs west, gdb and spike on PATH, and an OpenOCD with remote_bitbang
-# (SPIKE_OPENOCD=/path/to/openocd). Exit 0 if every expected pattern was found.
+# Non-interactive check of the whole debug chain (Spike -> OpenOCD -> gdb).
+#   tests/debug/smoke.sh <build-dir-built-with -S debug>
+# Needs: env.sh sourced (west, gdb, spike) and an OpenOCD with remote_bitbang
+# (SPIKE_OPENOCD=/path/to/openocd). Exit 0 = every expectation matched.
 set -u
 BUILD=${1:?usage: smoke.sh <build-dir>}
 LOG=$(mktemp)

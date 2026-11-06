@@ -1,0 +1,102 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Variant "sophialake_4g": HYPOTHETICAL. NO SUCH BOARD EXISTS TODAY.
+ *
+ * This is the base board (chipyard_penguin/penguin: the taped-out chip as its core
+ * sees it, HTIF console, uart_tsi loader) with ONE difference: ram0 is 4 GiB at
+ * 0x8000_0000 instead of 256 MiB. It exists so that large workloads (hundreds of MiB
+ * of weights) can link and run on Spike. Nothing else differs from the base board.
+ *
+ * Why "sophialake": the chip is brought up on the SophiaLake FPGA board. That board
+ * has 1 GiB of DDR3L (bringup-chipyard fpga/src/main/scala/SophiaLake/Configs.scala:196
+ * @ 245f2a9d: WithExtMemSize(...) // 1 GB of DDR). The chip itself decodes a 32 GiB
+ * DRAM window at 0x8000_0000 (the tapeout config), so a board with more DRAM is
+ * possible, but 4 GiB is not populated anywhere. How addresses above 1 GiB behave on
+ * SophiaLake hardware is unverified: they may alias or fault. Do NOT load an image
+ * built for this variant onto today's hardware unless it stays below 0x8000_0000 + 1 GiB.
+ *
+ * Cell sizes. 4 GiB at 0x8000_0000 ends at 0x1_8000_0000, and the size 0x1_0000_0000
+ * does not fit in one 32-bit cell. The base tree (penguin.dtsi) uses
+ * #address-cells = <1> / #size-cells = <1>, which is right for the 256 MiB board and
+ * stays as it is. This variant switches the ROOT node to two cells so that ram0 (and
+ * anything above 4 GiB) can be described, and then:
+ *   - rewrites the only direct children of the root that have a reg (ram0, spad0) with
+ *     two-cell values (same addresses as the base board; only ram0's size differs);
+ *   - keeps /soc and everything in it on one cell, unedited. dtc rejects an empty
+ *     "ranges;" between nodes with different cell counts, and a translating "ranges"
+ *     needs a unit name that /soc (shared with the base board) does not have, so the
+ *     variant deletes /soc's "ranges". Without "ranges" nothing is translated: the
+ *     peripherals keep the addresses written in penguin.dtsi, which are already
+ *     the CPU's physical addresses. (Checked: the generated devicetree_generated.h
+ *     differs from the base board's only in ram0's size and the new atlas_dram node.)
+ * Alternatives rejected: one cell cannot express 4 GiB (size 0x1_0000_0000); and
+ * editing penguin.dtsi to two cells would touch every reg of the base board for no reason.
+ */
+
+#include <chipyard/penguin.dtsi>
+
+/ {
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	/* Same as chipyard_penguin.dts (Zephyr loads one dts per target, so the
+	 * few lines are repeated; keep them in sync). */
+	chosen {
+		zephyr,console = &htif;
+		zephyr,shell-uart = &htif;
+		zephyr,sram = &ram0;
+	};
+
+	/* The one real difference: 4 GiB (0x1_0000_0000) at 0x8000_0000, which
+	 * ends at 0x1_8000_0000. HYPOTHETICAL, see the header. */
+	ram0: memory@80000000 {
+		reg = <0x0 0x80000000 0x1 0x00000000>;
+	};
+
+	/* Unchanged from the base board (0x0800_0000, 64 KiB), only in two-cell form. */
+	spad0: memory@8000000 {
+		reg = <0x0 0x08000000 0x0 0x00010000>;
+	};
+
+	/* Atlas DMA buffers. By convention (upstream Saturn<->Atlas host tests,
+	 * ATLAS_DRAM_BASE) they live at 0x9000_0000. On the base board that address is
+	 * just past the end of ram0; here it lies INSIDE ram0, so it is declared as a
+	 * reserved region to keep those tests at their fixed address.
+	 *
+	 * Size: 16 MiB. The upstream tests use offsets of a few KiB from that base
+	 * (largest literal offset found: 0x4C00); 16 MiB is generous headroom and a
+	 * policy choice, not a hardware fact. Widen it here if a test needs more.
+	 *
+	 * What this node does and does not do: it creates the linker region
+	 * ATLAS_DRAM (like SCRATCHPAD for spad0) and documents the carve-out. The
+	 * linker still places the image from 0x8000_0000 upward, and board.cmake adds a
+	 * link-time check (ASSERT) that the image and its static data stay below
+	 * 0x9000_0000, so nothing the linker places can overlap the Atlas buffers.
+	 */
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		atlas_dram: memory@90000000 {
+			compatible = "zephyr,memory-region", "mmio-sram";
+			reg = <0x0 0x90000000 0x0 0x01000000>;
+			zephyr,memory-region = "ATLAS_DRAM";
+		};
+	};
+};
+
+/* /soc stays one-cell (see the header): no address translation into the two-cell root. */
+&{/soc} {
+	/delete-property/ ranges;
+};
+
+&htif {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+};

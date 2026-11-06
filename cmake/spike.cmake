@@ -1,29 +1,40 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# SoC-agnostic helper: define the `run` / `run_custom` build targets that launch
-# the built ELF on Spike. Include it from a board.cmake (path relative to the board dir):
+# SoC-agnostic helper: define the `run` / `run_custom` build targets that
+# launch the built ELF on Spike (the RISC-V ISA simulator). Include it from a
+# board.cmake:
 #
-#   include(${BOARD_DIR}/../../../cmake/spike.cmake)
+#   include(${BOARD_DIR}/../../../cmake/spike.cmake)   # path relative to the board dir
 #
-# Spike is OPTIONAL: building never needs it. It is looked up with a soft find_program
-# at configure time (like Zephyr's cmake/emu/qemu.cmake); if missing, configure still
-# succeeds and only `run` fails, saying what to do.
+# Spike is OPTIONAL: building never needs it. It is looked up with a soft
+# find_program at configure time (the same idea as Zephyr's cmake/emu/qemu.cmake,
+# which also does not require QEMU to build). If it is missing, configure still
+# succeeds and only the `run` target fails, with a message that says what to do.
 #
-# Spike binary (first hit wins): -DSPIKE=..., the SPIKE environment variable, `spike` on
-# PATH. The result is baked into build.ninja: after changing $SPIKE or PATH, reconfigure
-# (west build -p auto).
+# Where the Spike binary comes from (first hit wins): -DSPIKE=... , the SPIKE
+# environment variable, then `spike` on PATH.
+# The lookup happens at configure time and the result is baked into build.ninja;
+# after changing $SPIKE or PATH, reconfigure (west build -p auto, or delete the
+# build directory) for `run` to see it.
 #
-# Knobs (CMake variable, environment variable, or both):
-#   SPIKE_TIMEOUT     seconds before a hung run is killed (default 120). Also read from
-#                     the environment when `run` executes (scripts/run_tests.py relies on it).
-#   SPIKE_EXTRA_ARGS  extra Spike arguments (space separated) placed before the ELF, e.g.
-#                     "--extlib=x.so --device=y,0x1000". Baked via -D and also read from
-#                     the environment when `run` executes. Plumbing only.
+# Knobs (each is a CMake variable, an environment variable, or both):
+#   SPIKE_TIMEOUT     seconds before a hung run is killed. Default 120. Also read
+#                     from the environment when `run` executes (no reconfigure
+#                     needed; scripts/run_tests.py relies on that).
+#   SPIKE_EXTRA_ARGS  extra Spike command-line arguments (space separated), put
+#                     before the ELF. As -DSPIKE_EXTRA_ARGS="..." (baked) and as
+#                     an environment variable read when `run` executes. For
+#                     example a Spike plugin: SPIKE_EXTRA_ARGS="--extlib=x.so
+#                     --device=y,0x1000". Plumbing only; this file knows nothing
+#                     about what the arguments mean.
 #
-# The --isa string is derived from Kconfig (Spike 1.1 has no --varch; the vector length
-# is the _zvl<N>b suffix): rv64i/rv32i, then m a f d c from RISCV_ISA_EXT_*, then v, then
-# every enabled RISCV_ISA_EXT_Z* in the loop below, then _zvl<N>b from RISCV_VECTOR_MAX_LEN.
-# Exit status is what the app passed to HTIF exit (see sim_exit.h); 0 = success.
+# The --isa string is derived from the build's Kconfig (Spike 1.1 has no
+# --varch; vector length is the _zvl<N>b suffix):
+#   base rv64i/rv32i, then m a f d c from RISCV_ISA_EXT_*, then v, then every
+#   enabled RISCV_ISA_EXT_Z* in the loop below (_zicntr _zfh _zba ...), then
+#   _zvl<N>b from RISCV_VECTOR_MAX_LEN.
+# Exit status is whatever the app passed to HTIF exit (see sim_exit.h), so
+# 0 = success.
 
 set(SUPPORTED_EMU_PLATFORMS custom)
 
@@ -58,10 +69,12 @@ endforeach()
 if(CONFIG_RISCV_ISA_EXT_V)
   string(APPEND _spike_isa v)
 endif()
-# Z* extensions: append `_<name>` for every enabled Zephyr ISA symbol, so Spike models
-# what GCC was told via -march (Zephyr's cmake/compiler/gcc/target_riscv.cmake). Add a
-# name here when adding a RISCV_ISA_EXT_Z* select. Zfh/Zfhmin and Zvfh/Zvfhmin are both
-# listed on purpose: Spike accepts the superset implied by either.
+# Multi-letter (Z*) extensions: append `_<name>` for every Zephyr ISA symbol that
+# is enabled, so Spike models exactly what GCC was told via -march (Zephyr's
+# cmake/compiler/gcc/target_riscv.cmake). Add a name here when you add a new
+# RISCV_ISA_EXT_Z* select; the names are all accepted by Spike 1.1.
+# Zfh/Zfhmin and Zvfh/Zvfhmin are listed both ways on purpose: Spike is happy
+# with the superset implied by either.
 foreach(_e ICNTR ICSR IFENCEI BA BB BC BS FH FHMIN FBFMIN VFH VFHMIN VFBFMIN
            CB CMP CMT AAMO ALRSC MMUL)
   if(CONFIG_RISCV_ISA_EXT_Z${_e})
@@ -69,9 +82,10 @@ foreach(_e ICNTR ICSR IFENCEI BA BB BC BS FH FHMIN FBFMIN VFH VFHMIN VFBFMIN
     string(APPEND _spike_isa _z${_l})
   endif()
 endforeach()
-# Extensions the hardware has but Kconfig cannot express (e.g. Zicntr: selecting it
-# breaks -march in this Zephyr fork). Boards list them lower-case, without the leading
-# underscore, in SPIKE_ISA_EXTRA before including this file.
+# Extensions the hardware has but that can't be expressed through Kconfig (e.g.
+# Zicntr: selecting it breaks -march in this Zephyr fork). Boards list them,
+# lower-case and without the leading underscore, in SPIKE_ISA_EXTRA before
+# including this file. Skipped if Kconfig already added them.
 foreach(_x ${SPIKE_ISA_EXTRA})
   if(NOT _spike_isa MATCHES "_${_x}(_|$)")
     string(APPEND _spike_isa _${_x})
@@ -94,8 +108,9 @@ set(SPIKE_ISA ${_spike_isa} CACHE INTERNAL "ISA string passed to Spike")
 
 if(SPIKE_EXE)
   message(STATUS "Spike: ${SPIKE_EXE} --isa=${SPIKE_ISA}")
-  # sh -c script: $0 = spike, $1 = the ELF, $@ = --isa and the baked extra arguments.
-  # SPIKE_TIMEOUT / SPIKE_EXTRA_ARGS in the environment of the `run` step override/extend them.
+  # sh -c script: $0 = spike, $1 = the ELF, $@ = --isa and the baked extra
+  # arguments. SPIKE_TIMEOUT and SPIKE_EXTRA_ARGS in the environment of the
+  # `run` step win over/extend the baked values (see the header).
   set(_spike_script
       "elf=\$1; shift; exec timeout \"\${SPIKE_TIMEOUT:-${SPIKE_TIMEOUT}}\" \"\$0\" \"\$@\" \$SPIKE_EXTRA_ARGS \"\$elf\"")
   add_custom_target(run_custom
@@ -109,7 +124,8 @@ if(SPIKE_EXE)
     )
 else()
   message(STATUS "Spike not found ('${SPIKE}'): building works, `run` will say what to do")
-  # A `run` that explains instead of failing with "No such file or directory".
+  # Same pattern as the vcu118 variant in board.cmake: a `run` that explains
+  # instead of failing with "No such file or directory".
   add_custom_target(run_custom
     COMMAND ${CMAKE_COMMAND} -E echo "ERROR: Spike not found (looked for '${SPIKE}'): set SPIKE=/path/to/spike or run setup with --with-spike. Building does not need Spike; only `run` does. If you just installed it, reconfigure (west build -p auto)."
     COMMAND ${CMAKE_COMMAND} -E false
@@ -120,14 +136,15 @@ else()
 endif()
 
 # ---- debug (west debug / debugserver / attach) ------------------------------
-# The "spike" west runner (scripts/spike_runner.py, registered in zephyr/module.yml) is
-# Zephyr's openocd runner plus "start Spike first". OpenOCD config: SPIKE_OPENOCD_CFG
-# (default: the board's support/openocd-spike.cfg). Ports/timeouts are runner options:
+# The "spike" west runner (scripts/spike_runner.py, registered in
+# zephyr/module.yml) = Zephyr's openocd runner + "start Spike first". The board
+# supplies the OpenOCD config via SPIKE_OPENOCD_CFG (default: board
+# support/openocd-spike.cfg). Ports/timeouts are runner CLI options, e.g.
 #   west debug --rbb-port=9900 --gdb-port=3400 --spike-start-timeout=30
 set_ifndef(SPIKE_OPENOCD_CFG ${BOARD_DIR}/support/openocd-spike.cfg)
-# OpenOCD must be built with --enable-remote-bitbang (the Zephyr SDK's is not; the runner
-# checks). Use -DSPIKE_OPENOCD=... or the SPIKE_OPENOCD environment variable; default is
-# `openocd` on PATH.
+# OpenOCD must be built with --enable-remote-bitbang (the Zephyr SDK's is NOT;
+# the runner checks and says so). Point at one with -DSPIKE_OPENOCD=... or the
+# SPIKE_OPENOCD environment variable; default is whatever `openocd` is on PATH.
 if(NOT SPIKE_OPENOCD AND DEFINED ENV{SPIKE_OPENOCD})
   set(SPIKE_OPENOCD $ENV{SPIKE_OPENOCD})
 endif()

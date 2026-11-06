@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Hardware facts to probe. Defaults are the values for the target SoC from the course tapeout
-# repo and the Atlas NPU sources; override them if a bitstream or later RTL differs.
+# Hardware facts to probe. Defaults are the researched values for the target
+# SoC (from the course tapeout repo and the Atlas NPU sources). Override them if a bitstream or a later RTL drop differs.
 
-# The Atlas base and size values are fallbacks for when the devicetree has no enabled
-# ucb-bar,atlas node. penguin.dtsi enables one for every variant, including the generic vcu118
-# where Atlas is unverified, so they are normally unused; PROBE_ATLAS defaults off on the
-# emulation board.
+# Atlas base/size values below are FALLBACKS: used only when the devicetree
+# has no enabled ucb-bar,atlas node. penguin.dtsi enables one for every
+# variant (also the generic vcu118, where Atlas presence is unverified and
+# whether to disable the node is a pending user decision), so the fallbacks
+# are normally unused; PROBE_ATLAS merely defaults off on the emulation board.
 
 mainmenu "Hardware probe"
 
@@ -29,9 +30,10 @@ config PROBE_SCRATCHPAD
 	default n if CHIPYARD_FPGA_EMULATION
 	default y
 	help
-	  Off by default on the VCU118 variant, where the scratchpad address is unknown (MMIO was
-	  re-configured). A missing device traps and the fatal handler prints the faulting
-	  address.
+	  Off by default on the VCU118 variant: whether the emulated design
+	  still has the scratchpad at this address is unknown (MMIO was
+	  re-configured). Enable it to find out; a missing device traps and
+	  the fatal handler prints the faulting address.
 
 config PROBE_ATLAS
 	bool "Section 5: Atlas NPU CSR/VMEM/IMEM access (traps on Spike)"
@@ -45,9 +47,10 @@ config PROBE_DRAM_SIZE
 	bool "Section 6: DRAM size probe (DANGEROUS, may hang)"
 	default n
 	help
-	  Touches addresses at 256 MiB, 512 MiB, 1 GiB ... above the DRAM base. The chip has
-	  no DRAM; accesses go over SerialTL to the FPGA, and an address the FPGA does not map
-	  may never respond and hang the bus.
+	  WARNING: touches addresses at 256 MiB, 512 MiB, 1 GiB ... above the
+	  DRAM base. The chip has no DRAM of its own; accesses go out over
+	  SerialTL to the FPGA. An address the FPGA does not map may never get
+	  a response and hang the bus. Turn on only when a hang is acceptable.
 
 endmenu
 
@@ -57,8 +60,9 @@ config PROBE_MTIME_HZ
 	int "Assumed mtime rate in Hz"
 	default SYS_CLOCK_HW_CYCLES_PER_SEC
 	help
-	  WithPeripheryBusFrequency(500) sets timebase 500000 (ClockingFragments.scala:91-96); an
-	  FPGA bitstream may differ. Used to convert the measured ratio to MHz.
+	  Source: WithPeripheryBusFrequency(500) sets timebase 500000
+	  (ClockingFragments.scala:91-96). An FPGA bitstream may differ.
+	  Used only to convert the measured ratio to MHz.
 
 config PROBE_MTIME_WINDOW_TICKS
 	int "Measurement window in mtime ticks"
@@ -72,14 +76,14 @@ config PROBE_EXPECTED_CORE_MHZ
 	default CHIPYARD_FPGA_PBUS_MHZ if CHIPYARD_FPGA_EMULATION
 	default 500
 	help
-	  All buses run at 500 MHz. A measurement more than 20 percent away prints a WARN, not a
-	  FAIL.
+	  Source: all buses 500 MHz. A WARN, never a FAIL, is printed if
+	  the measurement is more than 20 percent away.
 
 config PROBE_CLOCK_TIMEOUT_CYCLES
 	int "Give up waiting for mtime after this many mcycle counts"
 	default 2000000000
 	help
-	  Stops the wait if mtime does not tick.
+	  Guards against an mtime that does not tick (would hang forever).
 
 endmenu
 
@@ -89,13 +93,13 @@ config PROBE_SPAD_BASE
 	hex "Scratchpad base"
 	default 0x08000000
 	help
-	  MBUS scratchpad (AbstractConfig.scala:120-121).
+	  Source: MBUS scratchpad (AbstractConfig.scala:120-121).
 
 config PROBE_SPAD_SIZE
 	hex "Scratchpad size in bytes"
 	default 0x10000
 	help
-	  64 KiB (AbstractConfig.scala:120-121).
+	  64 KiB, same source.
 
 config PROBE_SPAD_FULL
 	bool "Test the whole scratchpad, not just first/last 1 KiB"
@@ -135,7 +139,7 @@ config PROBE_DRAM_BASE
 	hex "DRAM base (for the optional size probe)"
 	default 0x80000000
 	help
-	  DRAM at 0x8000_0000, served by the FPGA over SerialTL.
+	  Source: DRAM base 0x8000_0000, served by the FPGA over SerialTL.
 
 endmenu
 

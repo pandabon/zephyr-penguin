@@ -4,23 +4,28 @@
 # doctor.sh: report what this machine has and what is missing, with a fix hint for each.
 # Changes nothing, downloads nothing. Exit status: 1 if something REQUIRED is missing or
 # wrong, else 0 (optional things that are missing only print "optional").
-#   make doctor            (or scripts/doctor.sh)
+#   scripts/doctor.sh
 #
 # Required to build:   Zephyr SDK (right version), west + Python >= 3.10, cmake < 4, ninja,
 #                      a Zephyr tree (ZEPHYR_BASE), a west workspace.
 # Optional:            Spike (to run), OpenOCD with remote_bitbang (to debug), uart_tsi
-#                      (to load onto hardware), TAPEOUT_CHIPYARD (atlas_upstream tests).
+#                      (to load onto hardware), TAPEOUT_CHIPYARD (the Atlas tests in an application repo).
 #
 # Every dependency can be given through an environment variable; each probe below is the
 # same lookup the build itself uses:
 #   ZEPHYR_SDK_INSTALL_DIR  the SDK folder          SDK_VERSION    wanted SDK version (default 1.0.0-beta1)
 #   ZEPHYR_BASE             the Zephyr checkout     SPIKE          the spike binary (else PATH)
 #   WS                      the west workspace      SPIKE_OPENOCD  OpenOCD with remote_bitbang
-#   BSP                     this module             UART_TSI       the uart_tsi binary (else PATH)
+#   ZEPHYR_PENGUIN          this repo (module)      UART_TSI       the uart_tsi binary (else PATH)
 #   TAPEOUT_CHIPYARD        tapeout-chipyard checkout (no default location)
 
 SDK_VERSION=${SDK_VERSION:-1.0.0-beta1}
-BSP=${BSP:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
+# BSP was the old name of ZEPHYR_PENGUIN (the repo is no longer called a BSP); still read, with a warning.
+if [ -z "${ZEPHYR_PENGUIN:-}" ] && [ -n "${BSP:-}" ]; then
+  echo "warning: the BSP environment variable is deprecated; use ZEPHYR_PENGUIN" >&2
+  ZEPHYR_PENGUIN=$BSP
+fi
+ZEPHYR_PENGUIN=${ZEPHYR_PENGUIN:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 bad=0
 
 ok()   { printf '  [ ok ] %s\n' "$*"; }
@@ -45,10 +50,10 @@ if [ -n "${WS:-}" ] && [ -d "$WS/.west" ]; then
 else
   fail "no west workspace (WS='${WS:-}')" "run inside a workspace (west init -l <manifest repo>; west update) or export WS=<dir with .west/>"
 fi
-if [ -f "$BSP/zephyr/module.yml" ]; then
-  ok "BSP=$BSP"
+if [ -f "$ZEPHYR_PENGUIN/zephyr/module.yml" ]; then
+  ok "ZEPHYR_PENGUIN=$ZEPHYR_PENGUIN"
 else
-  fail "chipyard-bsp not found (BSP='$BSP')" "export BSP=<dir containing zephyr/module.yml>"
+  fail "the penguin module (this repo) not found (ZEPHYR_PENGUIN='$ZEPHYR_PENGUIN')" "export ZEPHYR_PENGUIN=<dir containing zephyr/module.yml>"
 fi
 
 # ---- python -------------------------------------------------------------------------
@@ -82,7 +87,7 @@ if [ -z "${ZEPHYR_BASE:-}" ] && command -v west >/dev/null; then
 fi
 if [ -n "${ZEPHYR_BASE:-}" ] && [ -f "$ZEPHYR_BASE/Kconfig.zephyr" ]; then
   ok "ZEPHYR_BASE=$ZEPHYR_BASE"
-  want=$(awk '/name: zephyr/{f=1} f&&/revision:/{print $2; exit}' "$BSP/west.yml" 2>/dev/null)
+  want=$(awk '/name: zephyr/{f=1} f&&/revision:/{print $2; exit}' "$ZEPHYR_PENGUIN/west.yml" 2>/dev/null)
   have=$(git -C "$ZEPHYR_BASE" rev-parse HEAD 2>/dev/null)
   if [ -n "$want" ] && [ -n "$have" ]; then
     if [ "$want" = "$have" ]; then ok "Zephyr is at the SHA pinned in west.yml (${have:0:12})"
@@ -108,7 +113,7 @@ if [ -n "$SDK" ] && [ -d "$SDK" ]; then
     ok "SDK has cmake/zephyr/generic.cmake (the Zephyr fork finds its toolchain files)"
   else
     warn "SDK lacks cmake/zephyr/generic.cmake: a build will fail until the toolchain files are provided"
-    hint "the BSP carries a fallback, cmake/sdk-shims/ (not used by the build yet); it must never be copied into the SDK"
+    hint "use the SDK version this repo expects (see SDK_VERSION above)"
   fi
 else
   fail "ZEPHYR_SDK_INSTALL_DIR not set or not a directory ('$SDK')" "install the Zephyr SDK $SDK_VERSION and export ZEPHYR_SDK_INSTALL_DIR=<its folder>"
@@ -150,7 +155,7 @@ else opt "uart_tsi not found: building works; loading an ELF onto the chip/FPGA 
 echo "Optional: other people's tests"
 if [ -n "${TAPEOUT_CHIPYARD:-}" ] && [ -f "$TAPEOUT_CHIPYARD/tests/atlas_mmio.h" ]; then ok "TAPEOUT_CHIPYARD=$TAPEOUT_CHIPYARD"
 elif [ -n "${TAPEOUT_CHIPYARD:-}" ]; then warn "TAPEOUT_CHIPYARD='$TAPEOUT_CHIPYARD' has no tests/atlas_mmio.h"
-else opt "TAPEOUT_CHIPYARD not set: the atlas_upstream tests are skipped (no default location)"; fi
+else opt "TAPEOUT_CHIPYARD not set: the Atlas tests in an application repo are skipped (no default location)"; fi
 
 echo
 if [ "$bad" = 0 ]; then echo "doctor: everything required is in place."; else echo "doctor: something required is missing or wrong (see [FAIL] above)."; fi

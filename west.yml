@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-# West manifest for the Chipyard Zephyr BSP workspace (SoC: penguin).
+# West manifest for the Chipyard Zephyr (zephyr-penguin) workspace (first SoC: penguin).
 #
-#   cd bringup && west init -l zephyr-chipyard-bsp && west update
+#   cd bringup && west init -l zephyr-penguin && west update
 #
-# Zephyr comes from the ucb-bar fork, which carries the arch/riscv RVV context-switch and
-# POSIX patches that cannot live in a module. Everything SoC- and board-specific is in this repo.
+# Zephyr itself is only pulled in for the arch/riscv RVV context-switch and
+# POSIX patches that cannot live in a module; everything SoC/board specific
+# lives in this repo.
 manifest:
   remotes:
     - name: ucb-bar
@@ -13,16 +14,20 @@ manifest:
   projects:
     - name: zephyr
       remote: ucb-bar
-      # Tip of the 'penguinsoc' commits (RVV save/restore, HTIF flush, POSIX affinity); also on
-      # the ucb-bar/zephyr branch saturn-fork-wip.
+      # Tip of the 'penguinsoc' commits (RVV save/restore, HTIF flush, POSIX
+      # affinity). Already on ucb-bar/zephyr origin branches (e.g.
+      # saturn-fork-wip), so pinning the SHA needs no push.
       revision: 852bb170cc5655577e9cb3a673e69e2e0c3b00c5
-      # Zephyr's west commands (build, flash, debug, twister, ...) come from the fork's
-      # scripts/west-commands.yml. No other fork dependency is fetched: the C library is the
-      # SDK's prebuilt picolibc (CONFIG_PICOLIBC_USE_TOOLCHAIN) and muriscv-nn is unused. For a
-      # dependency from the fork's west-riscv.yml (eigen_headers, xnnpack, executorch), add
-      # `import: {file: west-riscv.yml, name-allowlist: [<name>]}` here and run `west update`.
+      # Zephyr's own west commands (west build, flash, debug, twister, ...) are
+      # declared in the fork's scripts/west-commands.yml; naming it here is all
+      # we need from the fork's manifest. Nothing else is fetched: the C library
+      # is the Zephyr SDK's prebuilt picolibc (CONFIG_PICOLIBC_USE_TOOLCHAIN),
+      # so the picolibc source module is not needed, and muriscv-nn is not used
+      # (both dropped 2026-10-11). If a workload needs a dependency from the
+      # fork's west-riscv.yml (eigen_headers, xnnpack, executorch), add an
+      # `import: {file: west-riscv.yml, name-allowlist: [<name>]}` here and run
+      # `west update`.
       west-commands: scripts/west-commands.yml
 
   self:
-    path: zephyr-chipyard-bsp
-    west-commands: scripts/west-commands.yml
+    path: zephyr-penguin

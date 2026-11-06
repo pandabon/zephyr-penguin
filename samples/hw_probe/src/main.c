@@ -1,12 +1,15 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Hardware probe: measures uncertain hardware facts in one run.
- *  - Each access that could trap or hang is announced with printk() first, so the last
- *    console line names the culprit.
- *  - A mismatch is recorded and the probe continues. Only a bus trap or hang stops it (a
- *    trap goes through Zephyr's fatal handler: message, exit 1).
- *  - Every fact is also printed as a "PROBE key=value" line.
+ * Hardware probe: answer uncertain hardware facts in one run.
+ *
+ * Rules this file follows:
+ *  - Every risky access (anything that could trap or hang) is announced with
+ *    printk() BEFORE it happens, so the last line on the console names the
+ *    culprit if the run hangs or traps.
+ *  - A mismatch is recorded and the probe continues. Only a bus trap or hang
+ *    stops it (a trap goes through Zephyr's fatal handler: message, exit 1).
+ *  - Every fact is also printed as one parseable "PROBE key=value" line.
  */
 
 #include <zephyr/kernel.h>
@@ -164,9 +167,11 @@ static void probe_vector(void)
 
 /* ---- 3. clocks ----------------------------------------------------------
  *
- * mtime is read with k_cycle_get_64(), i.e. the machine timer driver reading the CLINT mtime
- * at the DT address, which also checks the driver's view of the CLINT. The core side uses
- * mcycle/minstret, which exist in M-mode, unlike rdcycle/rdtime (Zicntr, counter-enable bits).
+ * mtime is read through Zephyr's k_cycle_get_64(): on this SoC that is the
+ * RISC-V machine timer driver reading the CLINT mtime register at the DT
+ * address, so it also validates the driver's view of the CLINT. The core
+ * side uses the mcycle/minstret CSRs, which are always present in M-mode
+ * (unlike rdcycle/rdtime, which need Zicntr and counter-enable bits).
  */
 static void probe_clocks(void)
 {

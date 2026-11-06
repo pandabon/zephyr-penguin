@@ -5,8 +5,8 @@ if BOARD_CHIPYARD_PENGUIN
 config BUILD_OUTPUT_BIN
 	default n
 
-# Without this ztest idles after the last test; include/tc_util_user_override.h makes it end
-# the simulation with an exit code.
+# ztest otherwise idles forever after the last test; the override header in
+# the module's include/ makes it end the simulation with an exit code.
 config ZTEST_TC_UTIL_USER_OVERRIDE
 	default y
 

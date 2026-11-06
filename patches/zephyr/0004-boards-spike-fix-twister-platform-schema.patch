@@ -13,7 +13,7 @@ Use the schema's existing values: spike_riscv64 becomes `type: sim` with
 simulation entry dropped, i.e. hardware boards (twister builds them only).
 
 NOT APPLIED. Proposed for the ucb-bar/zephyr fork; apply with
-  git -C zephyr apply zephyr-chipyard-bsp/patches/zephyr/0004-boards-spike-fix-twister-platform-schema.patch
+  git -C zephyr apply zephyr-penguin/patches/zephyr/0004-boards-spike-fix-twister-platform-schema.patch
 ---diff --git a/boards/chipyard/arty/chipyard_arty.yaml b/boards/chipyard/arty/chipyard_arty.yaml
 index 5f2eee6..fa6467c 100644
 --- a/boards/chipyard/arty/chipyard_arty.yaml

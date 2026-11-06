@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# Prints three timing lines (timing API ns and rdcycle). The values depend on the clock (Spike runs at its own
+# speed; on the FPGA compare with hw_probe), so the check is only that all three lines appear.
+sample:
+  name: penguin_basics_timer
+common:
+  platform_allow:
+    - chipyard_penguin/penguin
+    - chipyard_penguin/penguin/vcu118_ta
+  tags: basics timer
+tests:
+  basics.timer:
+    harness: console
+    harness_config:
+      type: multi_line
+      regex:
+        - "dummy_work\\(\\) took"
+        - "k_busy_wait\\(1000 us\\) took"
+        - "k_msleep\\(1\\) took"

@@ -17,9 +17,10 @@ CONFIG_FPU=y
 CONFIG_FPU_SHARING=y
 CONFIG_FLOAT_HARD=y
 
-# SYS_CLOCK_HW_CYCLES_PER_SEC (mtime) and RTC_CLOCK_DIVIDER_VALUE are in
-# soc/chipyard/penguin/Kconfig.defconfig. 10000 ticks/s = 100 us = 50 mtime counts per tick
-# at 500 kHz.
+# Clock rates: SYS_CLOCK_HW_CYCLES_PER_SEC (mtime) and RTC_CLOCK_DIVIDER_VALUE
+# are chip facts, so they live in soc/chipyard/penguin/Kconfig.defconfig (one
+# source of truth). Only the kernel tick rate is a board/app policy choice:
+# 10000 ticks/s = 100 us = exactly 50 mtime counts per tick at 500 kHz.
 CONFIG_SYS_CLOCK_TICKS_PER_SEC=10000
 CONFIG_TIMING_FUNCTIONS=y
 

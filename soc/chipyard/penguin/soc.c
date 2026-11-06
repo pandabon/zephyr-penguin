@@ -15,16 +15,20 @@
 #define CSR_VLENB 0xc22
 
 /*
- * The mtime rate is set in Kconfig (SYS_CLOCK_HW_CYCLES_PER_SEC, used by the timer driver) and
- * in the DT /cpus timebase-frequency. A mismatch would skew every timeout.
+ * The mtime rate is stated twice: Kconfig (SYS_CLOCK_HW_CYCLES_PER_SEC, soc
+ * Kconfig.defconfig, which the timer driver and tick math use) and the DT
+ * /cpus timebase-frequency (which is what the real Chipyard DTS reports and
+ * what the DT-driven code sees). Nothing else ties them together, so a board
+ * that edits one and forgets the other would silently skew every timeout.
  */
 BUILD_ASSERT(DT_PROP(DT_PATH(cpus), timebase_frequency) ==
 	     CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
 	     "DT /cpus timebase-frequency != CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC");
 
 /*
- * thread.h sizes each thread's vector save area from CONFIG_RISCV_VECTOR_MAX_LEN. A larger
- * hardware VLEN would overrun it on context switch, so panic at boot.
+ * thread.h sizes each thread's vector save area from
+ * CONFIG_RISCV_VECTOR_MAX_LEN; if the hardware VLEN is larger, context
+ * switches silently overrun it. Catch that at boot instead.
  */
 static int penguin_check_vlen(void)
 {
@@ -48,9 +52,12 @@ static int penguin_check_vlen(void)
 SYS_INIT(penguin_check_vlen, PRE_KERNEL_2, 0);
 
 /*
- * HTIF exit: writing (code << 1) | 1 to tohost makes the host (Spike's FESVR or the Chipyard
- * testharness) exit with `code`. No mutex, since this can run from fatal-error or ISR context;
- * masking interrupts is enough on one hart.
+ * HTIF exit: writing (code << 1) | 1 to tohost makes the host side (Spike's
+ * FESVR, or the Chipyard testharness) terminate with exit status `code`.
+ *
+ * No mutex here: this also runs from fatal-error context (possibly an ISR),
+ * where k_mutex_lock() is not allowed. Locking interrupts is enough on one
+ * hart, and each tohost write is a complete HTIF command.
  */
 FUNC_NORETURN void chipyard_sim_exit(int code)
 {
@@ -65,7 +72,7 @@ FUNC_NORETURN void chipyard_sim_exit(int code)
 	while (1) {
 	}
 #else
-	/* No HTIF host (FPGA): report on the UART and park the hart. */
+	/* No HTIF host (FPGA): tell the human on the UART, then park the hart. */
 	printk("\n*** EXIT %d ***\n", code);
 	while (1) {
 		__asm__ volatile("wfi");
@@ -81,8 +88,9 @@ void sys_arch_reboot(int type)
 }
 
 /*
- * Called after a fatal error once k_sys_fatal_error_handler() has returned. The default spins
- * forever; exit non-zero instead so the failure is visible to `west build -t run`.
+ * Called by the kernel after a fatal error (k_sys_fatal_error_handler() has
+ * returned). The default spins forever, which hangs the simulator; exit
+ * non-zero instead so `west build -t run` and twister see the failure.
  */
 FUNC_NORETURN void arch_system_halt(unsigned int reason)
 {

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Simple Zephyr test runner for this BSP (builds + runs on Spike).
+"""Simple Zephyr test runner for this repo (builds + runs on Spike).
 
-Fallback/simple path next to `west twister` (`make test` calls it). Run `--help` for flags,
+Fallback/simple path next to `west twister`. Run `--help` for flags,
 `--list` to see scenarios. Needs west and the Zephyr SDK on PATH (see README.md). Spike is
 optional: without it every scenario that needs to run is only built and reported BUILT
 (one notice at the start), see --build-only.
@@ -39,9 +39,9 @@ def as_list(v):
 def discover(root):
     """Yield one scenario dict per entry under tests: in testcase.yaml/sample.yaml.
 
-    The BSP itself keeps scenarios under tests/, samples/ and external/. Any other root (an app
+    The board repo itself keeps scenarios under tests/ and samples/. Any other root (an app
     repo, see --root) is searched whole, minus hidden and build folders."""
-    subs = ("tests", "samples", "external") if os.path.realpath(root) == REPO else (".",)
+    subs = ("tests", "samples") if os.path.realpath(root) == REPO else (".",)
     for sub in subs:
         for dp, dn, fn in os.walk(os.path.join(root, sub)):
             dn[:] = sorted(d for d in dn if not d.startswith(".") and d not in ("build", "__pycache__"))
@@ -153,12 +153,14 @@ def west_topdir():
 def detect_modules(override):
     """Value for -DZEPHYR_MODULES, or None when west already knows this checkout.
 
-    West knows it when it is the manifest repository itself (the BSP's own workspace) or a west
-    project named chipyard-bsp (an app repo that imports the BSP). Only a different checkout
-    (e.g. a git worktree under review) needs the override, or Zephyr would build the wrong code."""
+    West knows it when it is the manifest repository itself (the board repo's own workspace) or a
+    west project named penguin (an app repo that imports it). The old project name chipyard-bsp
+    is accepted too: some workspaces and app repos still use it until they are
+    updated. Only a different checkout (e.g. a git worktree under review) needs the override,
+    or Zephyr would build the wrong code."""
     if override:
         return override
-    known = [west_out("list", "-f", "{abspath}", name).splitlines()[:1] for name in ("manifest", "chipyard-bsp")]
+    known = [west_out("list", "-f", "{abspath}", name).splitlines()[:1] for name in ("manifest", "penguin", "chipyard-bsp")]
     for k in known:
         if k and os.path.realpath(k[0]) == REPO:
             return None
@@ -267,7 +269,7 @@ def run_one(s, a, modules):
 
 # ---------------------------------------------------------------- reporting
 def write_junit(path, results, board):
-    suite = ET.Element("testsuite", name="zephyr-chipyard-bsp:" + board,
+    suite = ET.Element("testsuite", name="penguin:" + board,
                        tests=str(len(results)),
                        failures=str(sum(r["status"] in (FAIL, XPASS_FAILS) for r in results)),
                        skipped=str(sum(r["status"] in (SKIP, XFAIL, BUILT) for r in results)))
@@ -296,10 +298,10 @@ def main():
     ap.add_argument("--modules", help="explicit ZEPHYR_MODULES value (default: auto-detect)")
     ap.add_argument("--root", default=REPO, metavar="DIR",
                     help="scenario root: the folder whose sample.yaml/testcase.yaml files are run "
-                         "(default: this BSP). Use it to run an app repo's suite; "
+                         "(default: this repo). Use it to run an app repo's suite; "
                          "known failures then default to <DIR>/known_failures.yaml")
     ap.add_argument("--known-failures", default=None,
-                    help="known-failures YAML (default: <root>/known_failures.yaml, or tests/known_failures.yaml for the BSP)")
+                    help="known-failures YAML (default: <root>/known_failures.yaml, or tests/known_failures.yaml for this repo)")
     ap.add_argument("--strict-xpass", action="store_true", help="XPASS fails the run")
     ap.add_argument("--build-root", default=None,
                     help="where builds and logs go (default: <west topdir>/build/test-runner)")
@@ -353,7 +355,7 @@ def main():
                 r["known"] = k.get("reason", "")
                 if r["status"] == FAIL:
                     r["status"] = XFAIL
-                    r["detail"] = "%s; known: see tests/known_failures.yaml" % r["detail"]
+                    r["detail"] = "%s; known: see %s" % (r["detail"], os.path.relpath(a.known_failures, a.root))
                 elif r["status"] == PASS:
                     r["status"] = XPASS
                     r["detail"] = "now passes: remove from known_failures.yaml" + (
@@ -378,7 +380,7 @@ def main():
         write_junit(a.junit, results, a.board)
     bad = cnt[FAIL] + (cnt[XPASS] if a.strict_xpass else 0)
     if cnt[XPASS]:
-        print("NOTE: %d XPASS: prune tests/known_failures.yaml" % cnt[XPASS])
+        print("NOTE: %d XPASS: prune %s" % (cnt[XPASS], os.path.relpath(a.known_failures, a.root)))
     return 1 if bad else 0
 
 

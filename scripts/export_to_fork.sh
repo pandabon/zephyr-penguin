@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # export_to_fork.sh: generate the in-tree Penguin port for a checkout of the
-# ucb-bar/zephyr fork from this BSP, so the two never drift.
+# ucb-bar/zephyr fork from this repo (zephyr-penguin), so the two never drift.
 #
 #   scripts/export_to_fork.sh <fork-repo-path> [--commit] [--message-file FILE]
 #
-# The BSP stays the single source of truth. This script copies the Zephyr-appropriate
+# This repo stays the single source of truth. This script copies the Zephyr-appropriate
 # part of it (soc/, boards/, dts/, the two bindings) into the fork layout and leaves the
 # result as uncommitted changes in the fork for review. It never pushes.
 #
@@ -22,27 +22,27 @@
 #   dts/bindings/cpu/ucb-bar,shuttle.yaml
 #   dts/bindings/vendor-prefixes.txt          only the lines `chipyard` and `ucb-bar` are merged
 #                                             into the fork's own sorted list
-# NOT exported (they stay in the BSP): plain_app, bare metal (support/), doctor, template,
-# test runner, Makefile, samples/tests, the `spike` west runner and the OpenOCD configs.
+# NOT exported (they stay in the board repo): bare metal (support/), doctor, test runner,
+# samples/tests, the `spike` west runner and the OpenOCD configs.
 #
 # Transforms applied (everything else is a byte-for-byte copy, so the SPDX/credit headers
 # and the cited sources in the comments are preserved):
 #   * soc CMakeLists.txt: adds zephyr_include_directories(include) so <chipyard/sim_exit.h>
-#     and tc_util_user_override.h resolve without the BSP module's include/.
+#     and tc_util_user_override.h resolve without this module's include/.
 #   * board.cmake: include(.../cmake/spike.cmake) -> the copy next to it.
 #   * spike.cmake: everything from the "---- debug" marker on is dropped (it registers the
 #     out-of-tree `spike` runner, which does not exist in the fork).
 #   * board Kconfig.defconfig: comment "the module's include/" -> the in-tree location.
 #   * boards/chipyard/penguin/doc/index.rst: generated (3 factual lines), like the fork's
-#     other chipyard boards have; the BSP keeps no board docs in git.
+#     other chipyard boards have; this repo keeps no board docs in git.
 #
 # Idempotent: the owned directories are rebuilt from scratch each run, so a file deleted in
-# the BSP disappears in the fork too; running twice on the same BSP commit changes nothing.
+# the repo disappears in the fork too; running twice on the same repo commit changes nothing.
 # Provenance is NOT stamped into the files (a sha in every file would make every re-export a
 # whole-tree diff); it goes in the commit message and is printed here.
 #
 # --commit  commit the result in the fork (repo-local identity, no trailers), message states
-#           the BSP commit. Without it the changes are only left in the working tree.
+#           the commit of this repo. Without it the changes are only left in the working tree.
 
 set -euo pipefail
 
@@ -61,29 +61,29 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$FORK" ] || usage
 
-BSP=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FORK=$(cd "$FORK" && pwd)
 git -C "$FORK" rev-parse --git-dir >/dev/null 2>&1 || { echo "not a git repo: $FORK" >&2; exit 1; }
 [ -f "$FORK/VERSION" ] && [ -d "$FORK/soc" ] && [ -d "$FORK/boards/chipyard" ] \
   || { echo "$FORK does not look like the ucb-bar/zephyr fork (no VERSION, soc/ or boards/chipyard/)" >&2; exit 1; }
-[ "$FORK" != "$BSP" ] || { echo "fork path is the BSP itself" >&2; exit 1; }
+[ "$FORK" != "$REPO" ] || { echo "fork path is this repo itself" >&2; exit 1; }
 
 # ---- provenance --------------------------------------------------------------
 SRC_PATHS="soc/chipyard/penguin boards/chipyard/penguin dts/riscv/chipyard/penguin.dtsi \
 dts/bindings/accel/ucb-bar,atlas.yaml dts/bindings/cpu/ucb-bar,shuttle.yaml \
 include/chipyard/sim_exit.h include/tc_util_user_override.h cmake/spike.cmake scripts/export_to_fork.sh"
-BSP_HEAD=$(git -C "$BSP" rev-parse --short=7 HEAD)
-BSP_BRANCH=$(git -C "$BSP" rev-parse --abbrev-ref HEAD)
-# Last BSP commit that touched an exported source: stable across unrelated BSP commits.
+REPO_HEAD=$(git -C "$REPO" rev-parse --short=7 HEAD)
+REPO_BRANCH=$(git -C "$REPO" rev-parse --abbrev-ref HEAD)
+# Last commit of this repo that touched an exported source: stable across unrelated commits.
 # shellcheck disable=SC2086
-BSP_SRC=$(git -C "$BSP" log -1 --format=%h --abbrev=7 -- $SRC_PATHS)
+REPO_SRC=$(git -C "$REPO" log -1 --format=%h --abbrev=7 -- $SRC_PATHS)
 DIRTY=""
 # shellcheck disable=SC2086
-if [ -n "$(git -C "$BSP" status --porcelain -- $SRC_PATHS | grep -v '^??.*support/' || true)" ]; then
+if [ -n "$(git -C "$REPO" status --porcelain -- $SRC_PATHS | grep -v '^??.*support/' || true)" ]; then
   DIRTY=" (+uncommitted changes in exported files)"
-  [ "$DO_COMMIT" = 1 ] && { echo "refusing --commit: exported BSP files have uncommitted changes" >&2; exit 1; }
+  [ "$DO_COMMIT" = 1 ] && { echo "refusing --commit: exported files have uncommitted changes" >&2; exit 1; }
 fi
-echo "BSP:  $BSP  $BSP_BRANCH@$BSP_HEAD, exported files last changed in $BSP_SRC$DIRTY"
+echo "repo: $REPO  $REPO_BRANCH@$REPO_HEAD, exported files last changed in $REPO_SRC$DIRTY"
 echo "Fork: $FORK  $(git -C "$FORK" rev-parse --abbrev-ref HEAD)@$(git -C "$FORK" rev-parse --short=11 HEAD)"
 
 # ---- export ------------------------------------------------------------------
@@ -94,10 +94,10 @@ rm -rf "$DST_SOC" "$DST_BRD"
 mkdir -p "$DST_SOC/include/chipyard" "$DST_BRD/doc" \
          "$FORK/dts/riscv/chipyard" "$FORK/dts/bindings/accel" "$FORK/dts/bindings/cpu"
 
-# SoC (flat files only; the BSP soc dir has no subdirs)
-cp "$BSP/$SOC"/* "$DST_SOC/"
-cp "$BSP/include/chipyard/sim_exit.h" "$DST_SOC/include/chipyard/"
-cp "$BSP/include/tc_util_user_override.h" "$DST_SOC/include/"
+# SoC (flat files only; this repo's soc dir has no subdirs)
+cp "$REPO/$SOC"/* "$DST_SOC/"
+cp "$REPO/include/chipyard/sim_exit.h" "$DST_SOC/include/chipyard/"
+cp "$REPO/include/tc_util_user_override.h" "$DST_SOC/include/"
 cat >> "$DST_SOC/CMakeLists.txt" <<'EOF'
 
 # <chipyard/sim_exit.h> (what apps call to end a simulation) and
@@ -105,16 +105,16 @@ cat >> "$DST_SOC/CMakeLists.txt" <<'EOF'
 zephyr_include_directories(include)
 EOF
 
-# Board: flat files only (support/ = baremetal.mk, OpenOCD configs, stays in the BSP)
-for f in "$BSP/$BRD"/*; do [ -f "$f" ] && cp "$f" "$DST_BRD/"; done
-cp "$BSP/cmake/spike.cmake" "$DST_BRD/spike.cmake"
+# Board: flat files only (support/ = baremetal.mk, OpenOCD configs, stays in this repo)
+for f in "$REPO/$BRD"/*; do [ -f "$f" ] && cp "$f" "$DST_BRD/"; done
+cp "$REPO/cmake/spike.cmake" "$DST_BRD/spike.cmake"
 # Drop the debug-runner tail of spike.cmake (out-of-tree `spike` west runner).
-awk '/^# ---- debug/ {exit} {print}' "$BSP/cmake/spike.cmake" > "$DST_BRD/spike.cmake"
-sed -i '1a #\n# Exported from the zephyr-chipyard-bsp copy of cmake/spike.cmake. The `west debug` section\n# (which uses the BSP'"'"'s out-of-tree `spike` runner) is not part of the in-tree board.' \
+awk '/^# ---- debug/ {exit} {print}' "$REPO/cmake/spike.cmake" > "$DST_BRD/spike.cmake"
+sed -i '1a #\n# Exported from the zephyr-penguin copy of cmake/spike.cmake. The `west debug` section\n# (which uses this repo'"'"'s out-of-tree `spike` runner) is not part of the in-tree board.' \
   "$DST_BRD/spike.cmake"
 sed -i 's|include(${CMAKE_CURRENT_LIST_DIR}/../../../cmake/spike.cmake)|include(${CMAKE_CURRENT_LIST_DIR}/spike.cmake)|' \
   "$DST_BRD/board.cmake"
-sed -i 's|^# This BSP only PRODUCES binaries|# This board only PRODUCES binaries|; s|^#   include(${BOARD_DIR}/../../../cmake/spike.cmake).*|#   include(${CMAKE_CURRENT_LIST_DIR}/spike.cmake)|' \
+sed -i 's|^#   include(${BOARD_DIR}/../../../cmake/spike.cmake).*|#   include(${CMAKE_CURRENT_LIST_DIR}/spike.cmake)|' \
   "$DST_BRD/board.cmake" "$DST_BRD/spike.cmake"
 sed -i "s|the override header in$|the override header in|; s|# the module's include/ makes it end the simulation with an exit code.|# soc/chipyard/penguin/include/ makes it end the simulation with an exit code.|" \
   "$DST_BRD/Kconfig.defconfig"
@@ -133,9 +133,9 @@ Variants: ``vcu118`` (whole SoC on an FPGA, UART console) and ``vcu118_ta`` (HTI
 EOF
 
 # DTS + bindings
-cp "$BSP/dts/riscv/chipyard/penguin.dtsi" "$FORK/dts/riscv/chipyard/"
-cp "$BSP/dts/bindings/accel/ucb-bar,atlas.yaml" "$FORK/dts/bindings/accel/"
-cp "$BSP/dts/bindings/cpu/ucb-bar,shuttle.yaml" "$FORK/dts/bindings/cpu/"
+cp "$REPO/dts/riscv/chipyard/penguin.dtsi" "$FORK/dts/riscv/chipyard/"
+cp "$REPO/dts/bindings/accel/ucb-bar,atlas.yaml" "$FORK/dts/bindings/accel/"
+cp "$REPO/dts/bindings/cpu/ucb-bar,shuttle.yaml" "$FORK/dts/bindings/cpu/"
 
 # Vendor prefixes: merge our two entries into the fork's sorted file (not a copy).
 VP="$FORK/dts/bindings/vendor-prefixes.txt"
@@ -158,7 +158,7 @@ git -C "$FORK" diff --stat -- "$SOC" "$BRD" dts | tail -n 1
 
 if [ "$DO_COMMIT" = 1 ]; then
   if git -C "$FORK" cat-file -e HEAD:"$SOC/soc.yml" 2>/dev/null; then
-    SUBJECT="Penguin: re-export from zephyr-chipyard-bsp $BSP_SRC"
+    SUBJECT="Penguin: re-export from zephyr-penguin $REPO_SRC"
   else
     SUBJECT="Penguin: add the Penguin SoC (Shuttle + Saturn RVV + Atlas) and chipyard_penguin boards"
   fi
@@ -177,18 +177,18 @@ console, runs on Spike) plus the variants vcu118_ta and vcu118 (FPGA).
 Reused from the fork unchanged: the HTIF and SiFive UART drivers, the PLIC and
 RISC-V machine timer drivers, the ucb,htif binding, the RVV code in arch/riscv.
 
-Generated by scripts/export_to_fork.sh from zephyr-chipyard-bsp (the source of
-truth), so the out-of-tree BSP and this tree do not drift. Edit the BSP, then
+Generated by scripts/export_to_fork.sh from zephyr-penguin (the source of
+truth), so the out-of-tree repo and this tree do not drift. Edit that repo, then
 re-export; do not hand-edit these files here.
 
-Exported from zephyr-chipyard-bsp $BSP_BRANCH@$BSP_HEAD (exported files last
-changed in $BSP_SRC)."
+Exported from zephyr-penguin $REPO_BRANCH@$REPO_HEAD (exported files last
+changed in $REPO_SRC)."
   fi
   git -C "$FORK" add -A -- "$SOC" "$BRD" dts/riscv/chipyard/penguin.dtsi \
     dts/bindings/accel/ucb-bar,atlas.yaml dts/bindings/cpu/ucb-bar,shuttle.yaml \
     dts/bindings/vendor-prefixes.txt
   if git -C "$FORK" diff --cached --quiet; then
-    echo "nothing to commit (fork already matches BSP $BSP_SRC)"
+    echo "nothing to commit (fork already matches the repo at $REPO_SRC)"
   else
     git -C "$FORK" commit -q -m "$MSG"
     echo "committed: $(git -C "$FORK" log -1 --oneline)"

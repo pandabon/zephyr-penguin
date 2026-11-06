@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Variant "sophialake_4g": HYPOTHETICAL, NO SUCH BOARD EXISTS TODAY (the real
+# SophiaLake board has 1 GiB of DDR3L; this variant declares 4 GiB for Spike and for
+# a possible future board). It is the base board with a 4 GiB ram0, see the DTS header.
+#
+# NOTE: Zephyr loads ONLY this file for the variant (it does not layer it on
+# chipyard_penguin_defconfig), so everything below the marker is a copy of the base
+# board's. Keep it in sync when editing chipyard_penguin_defconfig.
+
+# --- variant-specific -------------------------------------------------------
+# The common-libc malloc arena defaults to -1 = "all RAM from the end of the image to
+# the end of ram0" (lib/libc/common/source/stdlib/malloc.c). With 4 GiB that would be
+# ~4 GiB and would run across the reserved Atlas buffers at 0x9000_0000. A positive
+# size makes the arena an ordinary static array that the linker places inside the
+# image (checked against the Atlas area by board.cmake). 32 MiB; apps that need more
+# override it in their prj.conf (and, if the image then passes 0x9000_0000, build
+# with -DPENGUIN_ATLAS_GUARD=OFF; see board.cmake).
+CONFIG_COMMON_LIBC_MALLOC_ARENA_SIZE=33554432
+
+# --- copied from chipyard_penguin_defconfig ---------------------------------
+CONFIG_SERIAL=y
+CONFIG_CONSOLE=y
+CONFIG_UART_CONSOLE=y
+CONFIG_UART_HTIF=y
+CONFIG_UART_SIFIVE_PORT_0=n
+CONFIG_PRINTK=y
+CONFIG_EARLY_CONSOLE=y
+CONFIG_REBOOT=y
+
+CONFIG_XIP=n
+CONFIG_RISCV_PMP=n
+CONFIG_PINCTRL=n
+
+CONFIG_FPU=y
+CONFIG_FPU_SHARING=y
+CONFIG_FLOAT_HARD=y
+
+# Clock rates: SYS_CLOCK_HW_CYCLES_PER_SEC (mtime) and RTC_CLOCK_DIVIDER_VALUE
+# are chip facts, so they live in soc/chipyard/penguin/Kconfig.defconfig (one
+# source of truth). Only the kernel tick rate is a board/app policy choice:
+# 10000 ticks/s = 100 us = exactly 50 mtime counts per tick at 500 kHz.
+CONFIG_SYS_CLOCK_TICKS_PER_SEC=10000
+CONFIG_TIMING_FUNCTIONS=y
+
+CONFIG_STACK_SENTINEL=y
+CONFIG_IDLE_STACK_SIZE=1024
+CONFIG_SPEED_OPTIMIZATIONS=y

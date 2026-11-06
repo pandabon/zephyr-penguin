@@ -1,3 +1,3 @@
-# Vendor prefixes used by this module's bindings (added to Zephyr's list).
+# Vendor prefixes used by bindings in this module (merged with Zephyr's list).
 ucb-bar	UC Berkeley Architecture Research
-ucb	UC Berkeley (used by the in-tree ucb,htif binding)
+ucb	UC Berkeley (prefix used by the in-tree ucb,htif binding)

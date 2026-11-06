@@ -8,10 +8,11 @@ config SOC_PENGUIN
 config SOC
 	default "penguin" if SOC_PENGUIN
 
-# The fork's arch/riscv/Kconfig.isa lost the Zba/Zbb/Zbs symbols (the Zbs help text is
-# appended to ZVFBFMIN), but cmake/compiler/gcc/target_riscv.cmake still tests
-# CONFIG_RISCV_ISA_EXT_ZBA/ZBB/ZBS to build -march. Declaring them here restores that without
-# changing the fork.
+# Zephyr's arch/riscv/Kconfig.isa has lost the Zba/Zbb/Zbs symbols (its Zbs help
+# text is glued onto ZVFBFMIN), yet cmake/compiler/gcc/target_riscv.cmake still
+# tests CONFIG_RISCV_ISA_EXT_ZBA/ZBB/ZBS to build -march. Declaring them here
+# (a Kconfig symbol may be declared more than once) makes that cmake code work
+# without touching the Zephyr fork.
 config RISCV_ISA_EXT_ZBA
 	bool
 config RISCV_ISA_EXT_ZBB

@@ -1,4 +1,5 @@
-# Only README.md is tracked among docs; un-ignore other paths below if needed.
+# Local notes are not tracked; README.md is the documentation.
+# (Add new docs to README.md, or un-ignore a specific path below.)
 *.md
 *.rst
 !/README.md
@@ -7,5 +8,5 @@
 __pycache__/
 /build/
 
-# local documentation folder
+# docs/ is a local, untracked folder
 /docs/
